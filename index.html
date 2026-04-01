@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wee Adventurers NI | Master Map</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
+    <style>
+        html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #fff; font-family: 'Segoe UI', sans-serif; }
+        #ui-layer { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 98%; max-width: 1250px; display: flex; flex-direction: column; gap: 10px; align-items: center; pointer-events: none; }
+        .bar { background: rgba(255,255,255,0.98); padding: 8px 12px; border-radius: 40px; box-shadow: 0 4px 25px rgba(0,0,0,0.15); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; align-items: center; pointer-events: auto; }
+        #search-box { display: flex; align-items: center; background: #f8f9fa; border-radius: 25px; padding: 4px 12px; border: 1px solid #eee; }
+        #search-box input { border: none; background: none; outline: none; font-size: 13px; width: 110px; padding: 6px; }
+        .btn { padding: 8px 14px; font-size: 10px; font-weight: 800; cursor: pointer; border: 1px solid #efefef; border-radius: 20px; background: white; color: #444; transition: 0.2s; text-transform: uppercase; }
+        .btn.active { background: #2e7d32; color: white; border-color: #2e7d32; box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3); }
+        .btn-reset { background: #e53935; color: white; border: none; }
+        .btn-special { background: #f8f9fa; border: 1px solid #ddd; }
+        #bottom-bar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 -5px 25px rgba(0,0,0,0.1); display: flex; gap: 15px; align-items: center; pointer-events: auto; max-width: 95%; overflow-x: auto; }
+        .cat-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; opacity: 0.4; transition: 0.3s; min-width: 55px; }
+        .cat-item img { width: 26px; height: 26px; }
+        .cat-item span { font-size: 8px; font-weight: 800; color: #555; text-align: center; }
+        .cat-item.active { opacity: 1; transform: scale(1.1); }
+        .popup-card { text-align: center; min-width: 220px; padding: 5px; }
+        .popup-title { font-size: 18px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 5px; }
+        .go-btn { display: flex; align-items: center; justify-content: center; text-align: center; gap: 6px; background: #2e7d32; color: white !important; padding: 10px 4px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 8px; font-size: 12px; border: none; width: 100%; cursor: pointer; box-sizing: border-box; }
+        .go-btn-secondary { background: #e8f5e9; color: #2e7d32 !important; border: 1px solid #2e7d32; }
+        .go-btn-outline { background: #f5f5f5; color: #444 !important; border: 1px solid #ddd; }
+
+        /* Custom Modal Styling */
+        #custom-modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; pointer-events: auto; }
+        .modal-content { background-color: white; padding: 25px; border-radius: 20px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        .modal-title { font-size: 20px; font-weight: bold; color: #2e7d32; margin-bottom: 15px; display: block; }
+        .modal-text { font-size: 14px; line-height: 1.6; color: #444; margin-bottom: 20px; display: block; }
+        .modal-close { background: #2e7d32; color: white; padding: 10px 25px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <div id="custom-modal">
+        <div class="modal-content">
+            <span class="modal-title">Wee Adventurers NI</span>
+            <span class="modal-text">Find the best playparks, indoor play, and family farms in NI! Search by county or category to plan your next adventure.</span>
+            <button class="modal-close" onclick="closeModal()">GOT IT!</button>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div class="bar">
+            <div id="search-box">
+                <input type="text" id="map-search" placeholder="Search..." oninput="handleSearch(this.value)">
+                <span>🔍</span>
+            </div>
+            <button class="btn btn-reset" onclick="resetAll()">RESET</button>
+            <button class="btn active" onclick="filterCounty('all', this)">NI ALL</button>
+            <button class="btn" onclick="filterCounty('antrim', this)">ANTRIM</button>
+            <button class="btn" onclick="filterCounty('armagh', this)">ARMAGH</button>
+            <button class="btn" onclick="filterCounty('derry', this)">L/DERRY</button>
+            <button class="btn" onclick="filterCounty('down', this)">DOWN</button>
+            <button class="btn" onclick="filterCounty('north down', this)">NORTH DOWN</button>
+            <button class="btn" onclick="filterCounty('fermanagh', this)">FERMANAGH</button>
+            <button class="btn" onclick="filterCounty('tyrone', this)">TYRONE</button>
+            <button class="btn btn-special" onclick="handleSpecial('Request')">🎯 REQUEST</button>
+            <button class="btn btn-special" onclick="handleSpecial('About')">✨ ABOUT</button>
+        </div>
+    </div>
+
+    <div id="bottom-bar">
+        <div class="cat-item active" onclick="filterCategory('all', this)">
+            <img src="https://img.icons8.com/color/48/earth-planet.png" />
+            <span>ALL</span>
+        </div>
+        <div class="cat-item" onclick="filterCategory('playparks', this)">
+            <img src="https://img.icons8.com/color/48/playground.png" />
+            <span>PARKS</span>
+        </div>
+        <div class="cat-item" onclick="filterCategory('indoors', this)">
+            <img src="https://img.icons8.com/color/48/home.png" />
+            <span>INDOOR</span>
+        </div>
+        <div class="cat-item" onclick="filterCategory('animals', this)">
+            <img src="https://cdn-icons-png.flaticon.com/512/1998/1998671.png" />
+            <span>ANIMALS</span>
+        </div>
+        <div class="cat-item" onclick="filterCategory('beaches', this)">
+            <img src="https://img.icons8.com/color/48/beach.png" />
+            <span>BEACH</span>
+        </div>
+        <div class="cat-item" onclick="filterCategory('museums', this)">
+            <img src="https://img.icons8.com/color/48/museum.png" />
+            <span>MUSEUM</span>
+        </div>
+        <div class="cat-item" onclick="filterCategory('sports', this)">
+            <img src="https://img.icons8.com/color/48/trophy.png" />
+            <span>SPORTS</span>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <script>
+        const map = L.map('map', { zoomControl: false }).setView([54.60, -6.60], 8);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+
+        let masterData = [];
+        let currentCounty = 'all';
+        let currentCategory = 'all';
+        const markers = L.markerClusterGroup({ disableClusteringAtZoom: 16 }).addTo(map);
+
+        const dataUrl = 'https://raw.githubusercontent.com/Nooney96/Map-one-file-final/main/map-data.json';
+
+        fetch(dataUrl).then(res => res.json()).then(data => {
+            masterData = data.features;
+            renderMap();
+        });
+
+        function renderMap(searchTerm = "") {
+            markers.clearLayers();
+            masterData.forEach(f => {
+                const p = f.properties;
+                const coords = f.geometry.coordinates;
+                if (p.type === 'utility') return;
+
+                const name = (p.name || "").toLowerCase();
+                const rowCounty = (p.county || "").toLowerCase().trim();
+                
+                // --- FIX: Use existing category if present, otherwise default to playparks ---
+                const rowCategory = (p.category || "playparks").toLowerCase().trim();
+
+                const matchesSearch = searchTerm === "" || name.includes(searchTerm.toLowerCase());
+                const matchesCounty = currentCounty === 'all' || rowCounty === currentCounty;
+                const matchesCategory = currentCategory === 'all' || rowCategory === currentCategory;
+
+                if (matchesSearch && matchesCounty && matchesCategory) {
+                    let colorMap = { 'indoors': 'red', 'animals': 'orange', 'beaches': 'blue', 'museums': 'violet', 'sports': 'gold' };
+                    let color = colorMap[rowCategory] || 'green';
+                    const icon = L.icon({ 
+                        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`, 
+                        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34] 
+                    });
+
+                    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${coords[1]},${coords[0]}`;
+                    const coordString = `${coords[1]}, ${coords[0]}`;
+
+                    L.marker([coords[1], coords[0]], { icon: icon })
+                        .bindPopup(`
+                            <div class="popup-card">
+                                <b class="popup-title">${p.name}</b>
+                                <p style="margin: 4px 0 10px 0;">${p.description || ''}</p>
+                                <a href="${p.infoUrl}" target="_blank" class="go-btn go-btn-secondary">ℹ️ VIEW DETAILS</a>
+                                <a href="${googleMapsUrl}" target="_blank" class="go-btn">🚗 DIRECTIONS</a>
+                                <button onclick="copyToClipboard('${coordString}')" class="go-btn go-btn-outline">📋 COPY COORDS</button>
+                            </div>
+                        `)
+                        .addTo(markers);
+                }
+            });
+        }
+
+        function handleSpecial(type) {
+            if (type === 'Request') {
+                window.open("https://www.weeadventurers.com/about-me", "_blank");
+            } else if (type === 'About') {
+                document.getElementById('custom-modal').style.display = 'flex';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('custom-modal').style.display = 'none';
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Coordinates copied to clipboard!");
+            });
+        }
+
+        function handleSearch(val) { renderMap(val); }
+        function filterCounty(c, el) { currentCounty = c.toLowerCase(); setActive(el, '.bar .btn'); renderMap(); }
+        function filterCategory(cat, el) { currentCategory = cat.toLowerCase(); setActive(el, '.cat-item'); renderMap(); }
+        function setActive(el, sel) { document.querySelectorAll(sel).forEach(b => b.classList.remove('active')); el.classList.add('active'); }
+        function resetAll() { location.reload(); }
+        window.onload = () => { setTimeout(() => { map.invalidateSize(); }, 500); };
+    </script>
+</body>
+</html>

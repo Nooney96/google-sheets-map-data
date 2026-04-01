@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗺️</text></svg>">
+    <meta charset="UTF-8">
+    <title>Wee Adventurers | Map Admin Generator</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 40px; color: #333; }
+        .container { max-width: 650px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h2 { color: #2e7d32; text-align: center; margin-top: 0; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        label { display: block; margin: 15px 0 5px; font-weight: bold; font-size: 14px; }
+        input, textarea, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-family: inherit; }
+        .full-width { grid-column: span 2; }
+        
+        .search-group { display: flex; gap: 10px; }
+        .btn-search { background: #2196F3; width: auto; padding: 0 20px; margin-top: 0; white-space: nowrap; }
+        
+        button { width: 100%; padding: 15px; background: #2e7d32; color: white; border: none; border-radius: 8px; font-weight: bold; margin-top: 25px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
+        button:hover { background: #1b5e20; }
+        #output-container { margin-top: 30px; display: none; border-top: 2px dashed #ddd; padding-top: 20px; }
+        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+        .copy-hint { font-size: 14px; color: #2e7d32; font-weight: bold; margin-bottom: 10px; }
+        .status { font-size: 12px; margin-top: 5px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🗺️ New Location Generator</h2>
+    
+    <div class="grid">
+        <div class="full-width">
+            <label>1. Search by Address or Business Name</label>
+            <div class="search-group">
+                <input type="text" id="addressInput" placeholder="e.g. Davagh Forest or 123 Main St, Portrush">
+                <button class="btn-search" onclick="lookupAddress()">FIND COORDS</button>
+            </div>
+            <div id="searchStatus" class="status">Type a name and click find to auto-fill coordinates.</div>
+        </div>
+
+        <div class="full-width">
+            <label>Location Name</label>
+            <input type="text" id="name" placeholder="e.g. Davagh Forest">
+        </div>
+
+        <div>
+            <label>County</label>
+            <select id="county">
+                <option value="antrim">Antrim</option>
+                <option value="armagh">Armagh</option>
+                <option value="derry">Derry</option>
+                <option value="down">Down</option>
+                <option value="north down">North Down</option>
+                <option value="fermanagh">Fermanagh</option>
+                <option value="tyrone">Tyrone</option>
+            </select>
+        </div>
+
+        <div>
+            <label>Category</label>
+            <select id="category">
+                <option value="playparks">Parks</option>
+                <option value="indoors">Indoor Play</option>
+                <option value="animals">Animals/Farms</option>
+                <option value="beaches">Beaches</option>
+                <option value="museums">Museums/History</option>
+                <option value="sports">Sports/Activity</option>
+            </select>
+        </div>
+
+        <div class="full-width">
+            <label>Coordinates (Latitude, Longitude)</label>
+            <input type="text" id="coords" placeholder="54.7357, -7.0508">
+        </div>
+
+        <div class="full-width">
+            <label>Website Link (infoUrl)</label>
+            <input type="text" id="url" placeholder="https://www.weeadventurers.com/post/...">
+        </div>
+
+        <div class="full-width">
+            <label>Description</label>
+            <textarea id="desc" rows="3" placeholder="A short blurb about the spot..."></textarea>
+        </div>
+    </div>
+
+    <button onclick="generateCode()">GENERATE CODE SNIPPET</button>
+
+    <div id="output-container">
+        <p class="copy-hint">✅ Ready! Paste this into your "features" list in map-data.json:</p>
+        <pre id="output"></pre>
+    </div>
+</div>
+
+<script>
+    async function lookupAddress() {
+        const query = document.getElementById('addressInput').value;
+        const status = document.getElementById('searchStatus');
+        if (!query) { alert("Please enter an address first."); return; }
+        status.textContent = "🔍 Searching...";
+        try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                const result = data[0];
+                document.getElementById('coords').value = `${result.lat}, ${result.lon}`;
+                if (!document.getElementById('name').value) {
+                    document.getElementById('name').value = result.display_name.split(',')[0];
+                }
+                status.textContent = "✅ Coordinates found!";
+                status.style.color = "#2e7d32";
+            } else {
+                status.textContent = "❌ Could not find that location.";
+                status.style.color = "#e53935";
+            }
+        } catch (error) {
+            status.textContent = "❌ Error connecting to search service.";
+        }
+    }
+
+    function generateCode() {
+        const name = document.getElementById('name').value;
+        const county = document.getElementById('county').value;
+        const category = document.getElementById('category').value;
+        const coordsRaw = document.getElementById('coords').value.split(',');
+        const desc = document.getElementById('desc').value;
+        const url = document.getElementById('url').value;
+
+        if(!name || coordsRaw.length < 2) { alert("Please provide a Name and Coordinates!"); return; }
+
+        const lat = parseFloat(coordsRaw[0].trim());
+        const lng = parseFloat(coordsRaw[1].trim());
+
+        // We build the string manually to get your exact requested format
+        const snippet = `    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [${lng}, ${lat}] },
+      "properties": {
+        "name": "${name}",
+        "description": "${desc.replace(/"/g, '\\"')}",
+        "infoUrl": "${url}",
+        "category": "${category}",
+        "county": "${county}"
+      }
+    },`;
+
+        document.getElementById('output').textContent = snippet;
+        document.getElementById('output-container').style.display = 'block';
+        document.getElementById('output-container').scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+
+</body>
+</html>
